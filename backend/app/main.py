@@ -19,9 +19,16 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Define allowed origins
+allowed_origins = [
+    "https://time-keeper-app-tsck8yj9.devinapps.com",  # Production frontend
+    "http://localhost:5173",  # Local development frontend
+    "http://localhost:3000"   # Alternative local development port
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins
+    allow_origins=allowed_origins,  # Specific allowed origins
     allow_credentials=True,
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
@@ -31,10 +38,16 @@ app.add_middleware(
 @app.middleware("http")
 async def add_cors_headers(request: Request, call_next):
     response = await call_next(request)
-    response.headers["Access-Control-Allow-Origin"] = "*"
+    origin = request.headers.get("origin", "")
+    
+    if origin in allowed_origins:
+        response.headers["Access-Control-Allow-Origin"] = origin
+    else:
+        response.headers["Access-Control-Allow-Origin"] = allowed_origins[0]  # Default to production
+        
     response.headers["Access-Control-Allow-Credentials"] = "true"
-    response.headers["Access-Control-Allow-Methods"] = "*"
-    response.headers["Access-Control-Allow-Headers"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
     return response
 
 app.include_router(auth.router)
@@ -61,6 +74,6 @@ async def options_route(rest_of_path: str):
         headers={
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
         },
     )

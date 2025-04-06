@@ -5,15 +5,37 @@ import { ProjectCreate, ProjectUpdate } from '../types/project.types';
 import { TimerUpdate } from '../types/timer.types';
 import { ReportFilters } from './report.service';
 
-const USE_MOCK_API = true; // Set to false to use real API
+const USE_MOCK_API = false; // Changed to false to use real API by default
+
+// Cached backend availability state
+let isBackendAvailable: boolean | null = null;
+const AVAILABILITY_CACHE_TIME = 15000; // 15 seconds
+let lastAvailabilityCheck = 0;
 
 const checkBackendAvailability = async (): Promise<boolean> => {
+  // Return cached result if it's recent
+  const now = Date.now();
+  if (isBackendAvailable !== null && (now - lastAvailabilityCheck) < AVAILABILITY_CACHE_TIME) {
+    return isBackendAvailable;
+  }
+  
   if (USE_MOCK_API) return false;
   
   try {
-    await api.get('/health');
+    // Try to reach the backend healthcheck endpoint
+    await api.get('/healthz', { timeout: 3000 });
+    
+    // Update cached state
+    isBackendAvailable = true;
+    lastAvailabilityCheck = now;
+    
+    console.log('Backend API is available');
     return true;
   } catch (error) {
+    // Update cached state
+    isBackendAvailable = false;
+    lastAvailabilityCheck = now;
+    
     console.warn('Backend API is not available, falling back to mock data');
     return false;
   }

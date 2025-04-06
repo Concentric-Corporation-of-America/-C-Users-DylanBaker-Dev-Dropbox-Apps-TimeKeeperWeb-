@@ -6,10 +6,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+# Default to the provided connection string if DATABASE_URL is not set
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://doadmin:AVNS_ifzweLn1iD8jj3kBsZf@bauen-db-do-user-20046124-0.d.db.ondigitalocean.com:25060/timekeeper")
 
-if DATABASE_URL and 'defaultdb' in DATABASE_URL:
-    DATABASE_URL = DATABASE_URL.replace('/defaultdb', '/timekeeper')
+# Ensure we're using the timekeeper database
+if DATABASE_URL and ('defaultdb' in DATABASE_URL or DATABASE_URL.endswith('postgres')):
+    DATABASE_URL = DATABASE_URL.replace('/defaultdb', '/timekeeper').replace('/postgres', '/timekeeper')
+
+print(f"Connecting to database: {DATABASE_URL.split('@')[1]}")
 
 engine = create_engine(DATABASE_URL)
 

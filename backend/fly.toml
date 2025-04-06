@@ -7,7 +7,7 @@ primary_region = "iad"
 [env]
   PORT = "8080"
   PYTHONPATH = "/app"
-  # The DATABASE_URL will be set as a secret
+  DATABASE_URL = "postgresql://doadmin:AVNS_ifzweLn1iD8jj3kBsZf@bauen-db-do-user-20046124-0.d.db.ondigitalocean.com:25060/timekeeper"
 
 [http_service]
   internal_port = 8080
@@ -21,7 +21,7 @@ primary_region = "iad"
   release_command = "cd /app && python -m pip install -r requirements.txt"
 
 [processes]
-  app = "cd /app && python -m uvicorn app.main:app --host 0.0.0.0 --port 8080"
+  app = "cd /app && python -m uvicorn main:app --host 0.0.0.0 --port 8080"
 
 [[vm]]
   cpu_kind = "shared"
