@@ -9,9 +9,15 @@ import {
   completeOnboarding as authServiceCompleteOnboarding
 } from '../services/auth.service';
 
-// Force API URL and online mode regardless of environment variable
-const API_URL = 'https://timekeeperweb-crimson-bird-4808.fly.dev';
-const USE_FALLBACK = false; // Force online mode
+// Get API URL from environment variable
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+// Use the VITE_USE_MOCK_API environment variable to determine fallback behavior
+const USE_FALLBACK = import.meta.env.VITE_USE_MOCK_API === 'true';
+
+// Log configuration on startup
+console.log('🔐 Auth Configuration:');
+console.log(`   API URL: ${API_URL}`);
+console.log(`   Mock API: ${USE_FALLBACK ? 'Enabled' : 'Disabled'}`);
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 

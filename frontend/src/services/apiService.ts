@@ -1,11 +1,13 @@
 import api from './api';
 import { mockAuthApi, mockProjectApi, mockTimerApi, mockReportApi } from './mockApi';
-import { UserLogin, UserRegister } from '../types/auth.types';
+import { UserLogin, UserRegister, VerificationRequest, OnboardingRequest } from '../types/auth.types';
 import { ProjectCreate, ProjectUpdate } from '../types/project.types';
 import { TimerUpdate } from '../types/timer.types';
 import { ReportFilters } from './report.service';
 
-const USE_MOCK_API = false; // Changed to false to use real API by default
+// Use the environment variable to determine if mock API should be used
+const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API === 'true' || false;
+console.log(`API Service Mode: ${USE_MOCK_API ? 'Using Mock Data' : 'Using Backend'}`);
 
 // Cached backend availability state
 let isBackendAvailable: boolean | null = null;
@@ -13,30 +15,38 @@ const AVAILABILITY_CACHE_TIME = 15000; // 15 seconds
 let lastAvailabilityCheck = 0;
 
 const checkBackendAvailability = async (): Promise<boolean> => {
+  // Force mock if configured in env
+  if (USE_MOCK_API) {
+    console.log('Mock API explicitly enabled via environment, using mock data');
+    return false;
+  }
+  
   // Return cached result if it's recent
   const now = Date.now();
   if (isBackendAvailable !== null && (now - lastAvailabilityCheck) < AVAILABILITY_CACHE_TIME) {
+    console.log(`Using cached backend availability: ${isBackendAvailable}`);
     return isBackendAvailable;
   }
   
-  if (USE_MOCK_API) return false;
-  
   try {
-    // Try to reach the backend healthcheck endpoint
-    await api.get('/healthz', { timeout: 3000 });
+    // Try to reach the backend healthcheck endpoint - ensure we use /healthz
+    console.log('Checking backend availability at /healthz...');
+    const response = await api.get('/healthz', { timeout: 5000 });
+    console.log('Backend response:', response.data);
     
     // Update cached state
     isBackendAvailable = true;
     lastAvailabilityCheck = now;
     
-    console.log('Backend API is available');
+    console.log('✅ Backend API is available');
     return true;
-  } catch (error) {
+  } catch (error: any) {
     // Update cached state
     isBackendAvailable = false;
     lastAvailabilityCheck = now;
     
-    console.warn('Backend API is not available, falling back to mock data');
+    console.warn('❌ Backend API check failed:', error.message);
+    console.warn('Falling back to mock data');
     return false;
   }
 };
@@ -67,6 +77,48 @@ export const authService = {
     } catch (error) {
       console.error('Registration error:', error);
       return mockAuthApi.register(userData);
+    }
+  },
+  
+  verifyEmail: async (verification: VerificationRequest) => {
+    try {
+      if (await checkBackendAvailability()) {
+        const response = await api.post('/auth/verify-email', verification);
+        return response.data;
+      } else {
+        return mockAuthApi.verifyEmail(verification);
+      }
+    } catch (error) {
+      console.error('Email verification error:', error);
+      return mockAuthApi.verifyEmail(verification);
+    }
+  },
+  
+  resendVerification: async (email: string) => {
+    try {
+      if (await checkBackendAvailability()) {
+        const response = await api.post(`/auth/resend-verification?email=${email}`);
+        return response.data;
+      } else {
+        return mockAuthApi.resendVerification(email);
+      }
+    } catch (error) {
+      console.error('Resend verification error:', error);
+      return mockAuthApi.resendVerification(email);
+    }
+  },
+  
+  completeOnboarding: async (onboarding: OnboardingRequest) => {
+    try {
+      if (await checkBackendAvailability()) {
+        const response = await api.post('/auth/onboarding', onboarding);
+        return response.data;
+      } else {
+        return mockAuthApi.completeOnboarding(onboarding);
+      }
+    } catch (error) {
+      console.error('Onboarding error:', error);
+      return mockAuthApi.completeOnboarding(onboarding);
     }
   },
   
