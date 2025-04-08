@@ -1,9 +1,17 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { AuthContextType, User, UserLogin, UserRegister } from '../types/auth.types';
+import { AuthContextType, User, UserLogin, UserRegister, VerificationRequest, OnboardingRequest } from '../types/auth.types';
 import axios, { AxiosError } from 'axios';
-import { login as authServiceLogin, register as authServiceRegister } from '../services/auth.service';
+import { 
+  login as authServiceLogin, 
+  register as authServiceRegister, 
+  verifyEmail as authServiceVerifyEmail,
+  resendVerification as authServiceResendVerification,
+  completeOnboarding as authServiceCompleteOnboarding
+} from '../services/auth.service';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// Force API URL and online mode regardless of environment variable
+const API_URL = 'https://timekeeperweb-crimson-bird-4808.fly.dev';
+const USE_FALLBACK = false; // Force online mode
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -16,7 +24,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(!!token);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [isBackendAvailable, setIsBackendAvailable] = useState<boolean>(true);
+  const [isBackendAvailable, setIsBackendAvailable] = useState<boolean>(!USE_FALLBACK);
 
   useEffect(() => {
     if (token && !user) {
@@ -25,6 +33,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [token, user]);
 
   useEffect(() => {
+    if (USE_FALLBACK) {
+      setIsBackendAvailable(false);
+      return;
+    }
+    
     const checkBackendAvailability = async () => {
       try {
         await axios.get(`${API_URL}/`, { timeout: 5000 });
@@ -149,27 +162,166 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setIsLoading(true);
       setError(null);
       
+      let registerResponse;
+      
       if (isBackendAvailable) {
         try {
-          await axios.post(`${API_URL}/auth/register`, userData, { timeout: 5000 });
+          const response = await axios.post(`${API_URL}/auth/register`, userData, { timeout: 5000 });
+          registerResponse = response.data;
         } catch (err) {
           console.warn('Backend registration failed, using fallback auth service');
           setIsBackendAvailable(false);
-          await authServiceRegister(userData);
+          registerResponse = await authServiceRegister(userData);
         }
       } else {
-        await authServiceRegister(userData);
+        registerResponse = await authServiceRegister(userData);
       }
       
-      await login({
-        email: userData.email,
-        password: userData.password
-      });
+      // Don't automatically log in after registration - require email verification
+      setUser(registerResponse);
       
     } catch (err: any) {
       console.error('Registration error:', err);
       
       let errorMessage = 'Registration failed. Please try again.';
+      
+      if ((err as AxiosError).code === 'ECONNABORTED' || 
+          (err as AxiosError).message.includes('Network Error')) {
+        errorMessage = 'Cannot connect to server. Please try again later.';
+      } else if (err.response?.data?.detail) {
+        errorMessage = err.response.data.detail;
+      }
+      
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const verifyEmail = async (verification: VerificationRequest) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      let verifyResponse: any = null;
+      
+      if (isBackendAvailable) {
+        try {
+          const response = await axios.post(`${API_URL}/auth/verify-email`, verification, { timeout: 5000 });
+          verifyResponse = response.data;
+        } catch (err) {
+          console.warn('Backend verification failed, using fallback auth service');
+          setIsBackendAvailable(false);
+          verifyResponse = await authServiceVerifyEmail(verification);
+        }
+      } else {
+        verifyResponse = await authServiceVerifyEmail(verification);
+      }
+      
+      // Update user state with verification data if needed
+      if (verifyResponse && user) {
+        setUser({...user, is_verified: true});
+      }
+      
+      // After verification, log the user in
+      await login({
+        email: verification.email,
+        password: '' // This would come from a form in the verification page
+      });
+      
+    } catch (err: any) {
+      console.error('Verification error:', err);
+      
+      let errorMessage = 'Verification failed. Please try again.';
+      
+      if ((err as AxiosError).code === 'ECONNABORTED' || 
+          (err as AxiosError).message.includes('Network Error')) {
+        errorMessage = 'Cannot connect to server. Please try again later.';
+      } else if (err.response?.data?.detail) {
+        errorMessage = err.response.data.detail;
+      }
+      
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const resendVerification = async (email: string) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      if (isBackendAvailable) {
+        try {
+          await axios.post(`${API_URL}/auth/resend-verification?email=${email}`, {}, { timeout: 5000 });
+        } catch (err) {
+          console.warn('Backend resend verification failed, using fallback auth service');
+          setIsBackendAvailable(false);
+          await authServiceResendVerification(email);
+        }
+      } else {
+        await authServiceResendVerification(email);
+      }
+      
+    } catch (err: any) {
+      console.error('Resend verification error:', err);
+      
+      let errorMessage = 'Could not resend verification email. Please try again.';
+      
+      if ((err as AxiosError).code === 'ECONNABORTED' || 
+          (err as AxiosError).message.includes('Network Error')) {
+        errorMessage = 'Cannot connect to server. Please try again later.';
+      } else if (err.response?.data?.detail) {
+        errorMessage = err.response.data.detail;
+      }
+      
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const completeOnboarding = async (onboarding: OnboardingRequest) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      let onboardingResponse;
+      
+      if (isBackendAvailable) {
+        try {
+          const response = await axios.post(
+            `${API_URL}/auth/onboarding`, 
+            onboarding, 
+            { 
+              timeout: 5000,
+              headers: {
+                Authorization: `Bearer ${token}`
+              }
+            }
+          );
+          onboardingResponse = response.data;
+        } catch (err) {
+          console.warn('Backend onboarding failed, using fallback auth service');
+          setIsBackendAvailable(false);
+          onboardingResponse = await authServiceCompleteOnboarding(onboarding);
+        }
+      } else {
+        onboardingResponse = await authServiceCompleteOnboarding(onboarding);
+      }
+      
+      // Update the user data with the onboarding information
+      setUser(onboardingResponse);
+      localStorage.setItem('user', JSON.stringify(onboardingResponse));
+      
+    } catch (err: any) {
+      console.error('Onboarding error:', err);
+      
+      let errorMessage = 'Could not complete onboarding. Please try again.';
       
       if ((err as AxiosError).code === 'ECONNABORTED' || 
           (err as AxiosError).message.includes('Network Error')) {
@@ -208,6 +360,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         isBackendAvailable,
         login,
         register,
+        verifyEmail,
+        resendVerification,
+        completeOnboarding,
         logout,
         clearError
       }}
