@@ -40,16 +40,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   useEffect(() => {
     if (USE_FALLBACK) {
+      console.log('🔶 Mock API explicitly enabled via environment variable');
       setIsBackendAvailable(false);
       return;
     }
     
     const checkBackendAvailability = async () => {
       try {
-        await axios.get(`${API_URL}/`, { timeout: 5000 });
+        console.log(`🔄 Checking backend availability at ${API_URL}/healthz...`);
+        // Check the /healthz endpoint instead of root with longer timeout
+        await axios.get(`${API_URL}/healthz`, { timeout: 10000 });
+        console.log('✅ Backend connection successful! Online mode activated.');
         setIsBackendAvailable(true);
-      } catch (err) {
-        console.warn('Backend not available, using fallback mode');
+      } catch (err: any) {
+        console.warn(`❌ Backend connection failed: ${err.message}`);
+        console.warn('⚠️ Falling back to offline mode');
         setIsBackendAvailable(false);
       }
     };
@@ -77,7 +82,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         headers: {
           Authorization: `Bearer ${token}`
         },
-        timeout: 5000
+        timeout: 10000 // Increased timeout
       });
       
       setUser(response.data);

@@ -17,22 +17,22 @@ let lastAvailabilityCheck = 0;
 const checkBackendAvailability = async (): Promise<boolean> => {
   // Force mock if configured in env
   if (USE_MOCK_API) {
-    console.log('Mock API explicitly enabled via environment, using mock data');
+    console.log('🔸 Mock API explicitly enabled via environment, using mock data');
     return false;
   }
   
   // Return cached result if it's recent
   const now = Date.now();
   if (isBackendAvailable !== null && (now - lastAvailabilityCheck) < AVAILABILITY_CACHE_TIME) {
-    console.log(`Using cached backend availability: ${isBackendAvailable}`);
+    console.log(`🔄 Using cached backend availability: ${isBackendAvailable}`);
     return isBackendAvailable;
   }
   
   try {
-    // Try to reach the backend healthcheck endpoint - ensure we use /healthz
-    console.log('Checking backend availability at /healthz...');
-    const response = await api.get('/healthz', { timeout: 5000 });
-    console.log('Backend response:', response.data);
+    // Try to reach the backend healthcheck endpoint
+    console.log('🔄 Checking backend availability at /healthz...');
+    const response = await api.get('/healthz', { timeout: 10000 });
+    console.log('📡 Backend response:', response.data);
     
     // Update cached state
     isBackendAvailable = true;
@@ -46,7 +46,7 @@ const checkBackendAvailability = async (): Promise<boolean> => {
     lastAvailabilityCheck = now;
     
     console.warn('❌ Backend API check failed:', error.message);
-    console.warn('Falling back to mock data');
+    console.warn('⚠️ Falling back to mock data');
     return false;
   }
 };

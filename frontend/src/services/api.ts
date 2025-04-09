@@ -5,6 +5,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 console.log('🌐 API Configuration:');
 console.log(`   API URL: ${API_URL}`);
 console.log(`   Mock API: ${import.meta.env.VITE_USE_MOCK_API || 'false'}`);
+console.log(`   Force Online: ${!import.meta.env.VITE_USE_MOCK_API || 'true'}`);
 
 const api = axios.create({
   baseURL: API_URL,
